@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Review Articles</title>
+</head>
+<body>
+    <h1>Review Articles</h1>
+    {% for article in articles %}
+    <div>
+        <h2>{{ article.title }}</h2>
+        <p><b>Original Description:</b><br>{{ article.description }}</p>
+        <p><b>AI Teaser:</b><br>{{ article.ai_teaser }}</p>
+        <p><b>Article Length:</b> {{ article.article_length }} characters</p>
+        <form action="/approve/{{ article.id }}" method="post">
+            <button type="submit">Approve</button>
+        </form>
+        <form action="/discard/{{ article.id }}" method="post">
+            <button type="submit">Discard</button>
+        </form>
+        <hr>
+    </div>
+    {% endfor %}
+</body>
+</html>
