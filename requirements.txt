@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+feedparser
+sqlalchemy
+sqlmodel
+python-dotenv
+apscheduler
+mastodon.py
+jinja2
+google-generativeai
+beautifulsoup4
+python-multipart

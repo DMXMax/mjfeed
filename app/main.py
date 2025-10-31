@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
@@ -50,23 +50,31 @@ def review_articles(request: Request, session: Session = Depends(get_session)):
     articles = session.exec(statement).all()
     return templates.TemplateResponse("review.html", {"request": request, "articles": articles})
 
-@app.post("/approve/{article_id}")
-def approve_article(article_id: int, session: Session = Depends(get_session)):
+
+
+@app.post("/process_article/{article_id}")
+def process_article(
+    article_id: int,
+    action: str = Form(...),
+    edited_teaser: str = Form(...),
+    session: Session = Depends(get_session)
+):
     article = session.get(Article, article_id)
-    if article:
+    if not article:
+        return {"message": "Article not found"}
+
+    if action == "approve":
+        article.ai_teaser = edited_teaser
         article.status = "approved"
         session.add(article)
         session.commit()
-    return {"message": "Article approved"}
-
-@app.post("/discard/{article_id}")
-def discard_article(article_id: int, session: Session = Depends(get_session)):
-    article = session.get(Article, article_id)
-    if article:
+        return {"message": "Article approved and teaser updated"}
+    elif action == "discard":
         article.status = "discarded"
         session.add(article)
         session.commit()
-    return {"message": "Article discarded"}
+        return {"message": "Article discarded"}
+    return {"message": "Invalid action"}
 
 def post_approved_articles():
     with Session(engine) as session:
@@ -76,7 +84,7 @@ def post_approved_articles():
             teaser = article.ai_teaser
             hashtags = generate_hashtags(None) # Placeholder for section
             content = f"{article.title}\n\n{teaser}\n\nRead more → {article.link}\n\n{' '.join(hashtags)}"            
-            status = post_toot(content)
+            status = post_toot(content, visibility=settings.mastodon_post_visibility)
             if status:
                 article.status = "posted"
                 session.add(article)

@@ -3,7 +3,7 @@ from app.config import settings
 
 if settings.google_api_key:
     genai.configure(api_key=settings.google_api_key)
-    model = genai.GenerativeModel('gemini-1.0-pro-latest')
+    model = genai.GenerativeModel('models/gemini-pro-latest')
 
 def generate_teaser(description: str, max_length: int = 400) -> str:
     """

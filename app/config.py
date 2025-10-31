@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     rss_feeds: str = "https://www.motherjones.com/feed/"
     poll_interval: int = 1800 # 30 minutes
     google_api_key: str = ""
+    mastodon_post_visibility: str = "private"
     default_hashtags: str = "#MotherJones,#Investigative"
 
     class Config:

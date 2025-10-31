@@ -11,14 +11,13 @@ def get_mastodon_client():
     )
     return mastodon
 
-def post_toot(content: str):
-    """
-    Posts a toot to Mastodon.
-    """
+def post_toot(content: str, visibility: str = "public") -> bool:
     mastodon = get_mastodon_client()
     try:
-        status = mastodon.status_post(content)
-        return status
+        status_object = mastodon.status_post(content, visibility=visibility)
+        print(f"Toot posted successfully with visibility: {visibility}!")
+        print(f"Mastodon Status Object: {status_object}")
+        return True
     except Exception as e:
-        print(f"Error posting to Mastodon: {e}")
-        return None
+        print(f"Error posting toot: {e}")
+        return False
