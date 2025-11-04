@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Depends, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -7,16 +8,22 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.storage import Article, create_db_and_tables, engine
 from app.rss_monitor import poll_feed
 from app.mastodon_client import post_toot
-from app.teaser import generate_hashtags
+from app.teaser import generate_hashtags, generate_new_teaser
 from app.config import settings
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 templates = Jinja2Templates(directory="templates")
 scheduler = BackgroundScheduler()
 
 def get_session():
     with Session(engine) as session:
         yield session
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse("static/favicon.svg")
 
 @app.on_event("startup")
 def on_startup():
@@ -57,6 +64,7 @@ def process_article(
     article_id: int,
     action: str = Form(...),
     edited_teaser: str = Form(...),
+    visibility: str = Form(...),
     session: Session = Depends(get_session)
 ):
     article = session.get(Article, article_id)
@@ -66,6 +74,7 @@ def process_article(
     if action == "approve":
         article.ai_teaser = edited_teaser
         article.status = "approved"
+        article.visibility = visibility
         session.add(article)
         session.commit()
         return {"message": "Article approved and teaser updated"}
@@ -74,6 +83,13 @@ def process_article(
         session.add(article)
         session.commit()
         return {"message": "Article discarded"}
+    elif action == "re_summarize":
+        # Assuming article.description holds the original article content
+        new_teaser = generate_new_teaser(article.description, edited_teaser)
+        article.ai_teaser = new_teaser
+        session.add(article)
+        session.commit()
+        return {"message": "Article re-summarized", "new_teaser": new_teaser}
     return {"message": "Invalid action"}
 
 def post_approved_articles():
@@ -81,11 +97,18 @@ def post_approved_articles():
         statement = select(Article).where(Article.status == "approved")
         articles_to_post = session.exec(statement).all()
         for article in articles_to_post:
-            teaser = article.ai_teaser
-            hashtags = generate_hashtags(None) # Placeholder for section
-            content = f"{article.title}\n\n{teaser}\n\nRead more → {article.link}\n\n{' '.join(hashtags)}"            
-            status = post_toot(content, visibility=settings.mastodon_post_visibility)
-            if status:
-                article.status = "posted"
-                session.add(article)
-                session.commit()
+                        teaser = article.ai_teaser
+                        hashtags = generate_hashtags(None) # Placeholder for section
+                        # Construct the content for the Mastodon toot
+                        content = f"{teaser}\n\nRead more → {article.link}\n\n{' '.join(hashtags)}"
+                        
+                        mastodon_visibility = article.visibility
+                        if mastodon_visibility == "direct":
+                            content += " @bullfinch"
+                            mastodon_visibility = "direct"
+            
+                        status = post_toot(content, visibility=mastodon_visibility)
+                        if status:
+                            article.status = "posted"
+                            session.add(article)
+                            session.commit()

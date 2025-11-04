@@ -10,3 +10,4 @@ jinja2
 google-generativeai
 beautifulsoup4
 python-multipart
+alembic

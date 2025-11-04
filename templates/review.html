@@ -2,22 +2,72 @@
 <html>
 <head>
     <title>Review Articles</title>
+    <link rel="icon" href="/favicon.ico" type="image/svg+xml">
+    <style>
+        .waiting {
+            cursor: wait;
+        }
+    </style>
 </head>
 <body>
     <h1>Review Articles</h1>
     {% for article in articles %}
     <div>
-        <h2>{{ article.title }}</h2>
+        <h2><a href="{{ article.link }}" target="_blank">{{ article.title }}</a></h2>
+        <p><b>Published:</b> {{ article.pub_date.strftime('%Y-%m-%d %H:%M') }}</p>
         <p><b>Original Description:</b><br>{{ article.description }}</p>
         <p><b>AI Teaser:</b></p>
         <form action="/process_article/{{ article.id }}" method="post">
             <textarea name="edited_teaser" rows="5" cols="80">{{ article.ai_teaser }}</textarea><br>
+            <label for="visibility-{{ article.id }}">Visibility:</label>
+            <select name="visibility" id="visibility-{{ article.id }}">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="direct">Direct Mention</option>
+            </select><br>
             <p><b>Article Length:</b> {{ article.article_length }} characters</p>
             <button type="submit" name="action" value="approve">Approve</button>
             <button type="submit" name="action" value="discard">Discard</button>
+            <button type="submit" name="action" value="re_summarize">Re-summarize</button>
         </form>
         <hr>
     </div>
     {% endfor %}
+
+    <script>
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+
+                const formData = new FormData(this);
+                const action = event.submitter.value;
+                
+                formData.set('action', action);
+
+                document.body.classList.add('waiting');
+
+                fetch(this.getAttribute('action'), {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(data.message);
+                    document.body.classList.remove('waiting');
+                    window.location.href = '/review';
+                })
+                .catch(error => {
+                    console.error('There was a problem with the fetch operation:', error);
+                    alert('An error occurred. Please try again.');
+                    document.body.classList.remove('waiting');
+                });
+            });
+        });
+    </script>
 </body>
 </html>

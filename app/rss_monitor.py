@@ -24,7 +24,25 @@ def poll_feed():
         return
 
     print(f"Found {len(feed.entries)} entries in the feed.")
+    
     with Session(engine) as session:
+        # Get all guids from the feed
+        feed_guids = {entry.id for entry in feed.entries}
+        
+        # Get all guids from the database
+        db_guids = set(session.exec(select(Article.guid)).all())
+        
+        # Find guids to delete
+        guids_to_delete = db_guids - feed_guids
+        
+        if guids_to_delete:
+            print(f"Found {len(guids_to_delete)} articles to delete.")
+            statement = select(Article).where(Article.guid.in_(guids_to_delete))
+            articles_to_delete = session.exec(statement).all()
+            for article in articles_to_delete:
+                session.delete(article)
+            session.commit()
+
         for entry in feed.entries:
             print(f"Processing entry: {entry.title}")
             # Check if article exists
@@ -60,6 +78,3 @@ def poll_feed():
         print("Committing changes to the database.")
         session.commit()
     print("Finished polling feed.")
-
-if __name__ == "__main__":
-    poll_feed()

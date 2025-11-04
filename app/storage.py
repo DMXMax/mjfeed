@@ -13,6 +13,7 @@ class Article(SQLModel, table=True):
     ai_teaser: Optional[str] = None
     article_length: Optional[int] = None
     status: str = Field(default="pending") # pending, approved, posted
+    visibility: str = Field(default="private") # public, private, direct
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
