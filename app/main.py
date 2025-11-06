@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from app.storage import Article, create_db_and_tables, engine
+from app.storage import Article, ApprovedTeaserExample, create_db_and_tables, engine
 from app.rss_monitor import poll_feed
 from app.mastodon_client import post_toot
 from app.teaser import generate_hashtags, generate_new_teaser
@@ -76,7 +76,16 @@ def process_article(
         article.status = "approved"
         article.visibility = visibility
         session.add(article)
+
+        approved_example = ApprovedTeaserExample(
+            original_article_id=article.id,
+            original_description=article.description,
+            approved_teaser=edited_teaser
+        )
+        session.add(approved_example)
         session.commit()
+        session.refresh(article)
+        session.refresh(approved_example)
         return {"message": "Article approved and teaser updated"}
     elif action == "discard":
         article.status = "discarded"
@@ -85,7 +94,7 @@ def process_article(
         return {"message": "Article discarded"}
     elif action == "re_summarize":
         # Assuming article.description holds the original article content
-        new_teaser = generate_new_teaser(article.description, edited_teaser)
+        new_teaser = generate_new_teaser(article.description, edited_teaser, session)
         article.ai_teaser = new_teaser
         session.add(article)
         session.commit()

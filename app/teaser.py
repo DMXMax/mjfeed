@@ -1,6 +1,8 @@
 from datetime import datetime
 import google.generativeai as genai
+from sqlmodel import Session, select
 from app.config import settings
+from app.storage import ApprovedTeaserExample
 
 if settings.google_api_key:
     genai.configure(api_key=settings.google_api_key)
@@ -38,17 +40,27 @@ def generate_hashtags(section: str | None) -> list[str]:
         hashtags.append(section_tag)
     return hashtags
 
-def generate_new_teaser(original_description: str, feedback_teaser: str) -> str:
+def generate_new_teaser(original_description: str, feedback_teaser: str, session: Session) -> str:
     """
-    Generates a new teaser based on the original description and feedback from the current teaser.
-    For now, this is a placeholder.
+    Generates a new teaser based on the original description and feedback from the current teaser,
+    incorporating examples of previously approved teasers.
     """
     if not settings.google_api_key:
         print("Warning: GOOGLE_API_KEY is not set. Falling back to simple concatenation.")
         return f"New summary based on feedback: {feedback_teaser} (Fallback - {datetime.now().strftime('%H:%M:%S')})"
 
     try:
-        prompt = f"Given the original article content: \n\n{original_description}\n\nAnd the previous summary (feedback): \n\n{feedback_teaser}\n\nGenerate a new, improved, concise, and engaging social media teaser. The new teaser should be ready to use, without any introductory phrases or options, and less than 200 characters."
+        # Retrieve a few recent approved examples
+        statement = select(ApprovedTeaserExample).order_by(ApprovedTeaserExample.created_at.desc()).limit(3)
+        approved_examples = session.exec(statement).all()
+
+        prompt_examples = ""
+        if approved_examples:
+            prompt_examples = "Here are some examples of good teasers:\n\n"
+            for example in approved_examples:
+                prompt_examples += f"Original: {example.original_description[:150]}...\nApproved Teaser: {example.approved_teaser}\n\n"
+
+        prompt = f"Given the original article content: \n\n{original_description}\n\nAnd the previous summary (feedback): \n\n{feedback_teaser}\n\n{prompt_examples}Generate a new, improved, concise, and engaging social media teaser. The new teaser should be ready to use, without any introductory phrases or options, and less than 200 characters."
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:

@@ -8,6 +8,7 @@ This project is a curated automation system that monitors Mother Jones RSS feeds
 - Detects new stories and stores them in a database.
 - Generates short teasers and relevant hashtags for Mastodon posts.
 - Provides a web-based UI for reviewing, approving, and discarding articles.
+- AI learns from approved teasers to generate better suggestions.
 - Schedules and posts approved articles to Mastodon.
 
 ## Project Structure
@@ -26,8 +27,22 @@ motherjones-masto/
 ├── .env
 ├── requirements.txt
 ├── docker-compose.yml
+├── alembic/versions/1cb465746dfe_add_approvedteaserexample_table.py (new migration)
 └── README.md
 ```
+
+### Database Migrations
+
+After adding new models or modifying existing ones in `app/storage.py`, you'll need to generate and apply database migrations using Alembic:
+
+1.  Generate a new migration script:
+    ```bash
+    alembic revision --autogenerate -m "Your descriptive message"
+    ```
+2.  Apply pending migrations:
+    ```bash
+    alembic upgrade head
+    ```
 
 ## Getting Started
 

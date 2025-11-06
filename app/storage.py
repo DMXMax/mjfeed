@@ -17,6 +17,13 @@ class Article(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+class ApprovedTeaserExample(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    original_article_id: Optional[int] = Field(default=None, index=True)
+    original_description: str
+    approved_teaser: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 
 DATABASE_URL = "sqlite:///database.db"
 engine = create_engine(DATABASE_URL, echo=True)
