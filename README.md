@@ -26,7 +26,7 @@ motherjones-masto/
 ├── templates/review.html
 ├── .env
 ├── requirements.txt
-├── docker-compose.yml
+├── docker-compose.yml (empty placeholder)
 ├── alembic/versions/1cb465746dfe_add_approvedteaserexample_table.py (new migration)
 └── README.md
 ```
@@ -49,7 +49,7 @@ After adding new models or modifying existing ones in `app/storage.py`, you'll n
 ### Prerequisites
 
 - Python 3.12+
-- `uv` package manager
+- `uv` package manager (preferred) or `pip`
 
 ### Installation
 
@@ -59,16 +59,19 @@ After adding new models or modifying existing ones in `app/storage.py`, you'll n
    cd motherjones-masto
    ```
 
-2. Install the dependencies:
+2. Install the dependencies (using `uv`):
    ```bash
    uv pip install -r requirements.txt
    ```
+   If you prefer standard pip: `pip install -r requirements.txt`
 
 3. Create a `.env` file and add your Mastodon API credentials:
    ```
    MASTODON_ACCESS_TOKEN="your_access_token"
    MASTODON_INSTANCE_URL="https://your_mastodon_instance.com"
    ```
+   Optional/other settings are defined in `app/config.py` with defaults.
+   The local SQLite database file is `database.db` (created on first run).
 
 ### Running the Application
 
