@@ -21,3 +21,16 @@ def post_toot(content: str, visibility: str = "public") -> bool:
     except Exception as e:
         print(f"Error posting toot: {e}")
         return False
+
+def get_trending_hashtags(limit: int = 20) -> list[dict]:
+    """
+    Fetches trending hashtags from the Mastodon instance.
+    Returns a list of hashtag dictionaries with 'name' and 'history' fields.
+    """
+    mastodon = get_mastodon_client()
+    try:
+        trends = mastodon.trending_tags(limit=limit)
+        return trends
+    except Exception as e:
+        print(f"Error fetching trending hashtags: {e}")
+        return []

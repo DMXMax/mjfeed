@@ -69,6 +69,8 @@ After adding new models or modifying existing ones in `app/storage.py`, you'll n
    ```
    MASTODON_ACCESS_TOKEN="your_access_token"
    MASTODON_INSTANCE_URL="https://your_mastodon_instance.com"
+   # Optional overrides (defaults shown):
+   POLL_INTERVAL=86400  # seconds between RSS polls (once a day)
    ```
    Optional/other settings are defined in `app/config.py` with defaults.
    The local SQLite database file is `database.db` (created on first run).
@@ -84,7 +86,7 @@ After adding new models or modifying existing ones in `app/storage.py`, you'll n
 
 ## Workflow
 
-1. The `rss_monitor.py` script polls the RSS feed every 30 minutes (configurable).
+1. The `rss_monitor.py` script polls the RSS feed every day  (configurable in .env).
 2. New articles are added to the database with a "pending" status.
 3. Go to the `/review` page to see the list of pending articles.
 4. You can approve or discard each article.

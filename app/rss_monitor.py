@@ -1,7 +1,7 @@
 import feedparser
 from sqlmodel import Session, select
 from app.storage import Article, engine
-from app.teaser import generate_teaser
+from app.teaser import generate_teaser, generate_hashtags
 from datetime import datetime
 import requests
 import html
@@ -62,6 +62,14 @@ def poll_feed():
                 article_len = len(full_text) if full_text else 0
 
                 teaser = generate_teaser(full_text if full_text else clean_description)
+                # Generate suggested hashtags and store them
+                hashtags = generate_hashtags(
+                    section=None,
+                    article_title=clean_title,
+                    article_description=clean_description
+                )
+                hashtags_str = ','.join(hashtags) if hashtags else None
+                
                 article = Article(
                     guid=entry.id,
                     title=clean_title,
@@ -71,6 +79,7 @@ def poll_feed():
                     author=entry.author if 'author' in entry else None,
                     ai_teaser=teaser,
                     article_length=article_len,
+                    suggested_hashtags=hashtags_str,
                 )
                 session.add(article)
             else:

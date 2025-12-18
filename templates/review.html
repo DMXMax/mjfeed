@@ -11,7 +11,9 @@
 </head>
 <body>
     <h1>Review Articles</h1>
-    {% for article in articles %}
+    {% for item in articles_with_hashtags %}
+    {% set article = item.article %}
+    {% set suggested_hashtags = item.suggested_hashtags %}
     <div>
         <h2><a href="{{ article.link }}" target="_blank">{{ article.title }}</a></h2>
         <p><b>Published:</b> {{ article.pub_date.strftime('%Y-%m-%d %H:%M') }}</p>
@@ -21,10 +23,11 @@
             <textarea name="edited_teaser" rows="5" cols="80">{{ article.ai_teaser }}</textarea><br>
             <label for="visibility-{{ article.id }}">Visibility:</label>
             <select name="visibility" id="visibility-{{ article.id }}">
-                <option value="public">Public</option>
-                <option value="private">Private</option>
-                <option value="direct">Direct Mention</option>
+                <option value="public" {% if article.visibility == 'public' %}selected{% endif %}>Public</option>
+                <option value="private" {% if not article.visibility or article.visibility == 'private' %}selected{% endif %}>Private</option>
+                <option value="direct" {% if article.visibility == 'direct' %}selected{% endif %}>Direct Mention</option>
             </select><br>
+            <p><b>Suggested Hashtags:</b> {{ ' '.join(suggested_hashtags) }}</p>
             <p><b>Article Length:</b> {{ article.article_length }} characters</p>
             <button type="submit" name="action" value="approve">Approve</button>
             <button type="submit" name="action" value="discard">Discard</button>

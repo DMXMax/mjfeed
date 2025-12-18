@@ -12,6 +12,7 @@ class Article(SQLModel, table=True):
     author: Optional[str] = None
     ai_teaser: Optional[str] = None
     article_length: Optional[int] = None
+    suggested_hashtags: Optional[str] = None  # Stored as comma-separated string like "#tag1,#tag2"
     status: str = Field(default="pending") # pending, approved, posted
     visibility: str = Field(default="private") # public, private, direct
     created_at: datetime = Field(default_factory=datetime.utcnow)
