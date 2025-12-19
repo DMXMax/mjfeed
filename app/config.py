@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     poll_interval: int = 86400 # 24 hours
     google_api_key: str = ""
     mastodon_post_visibility: str = "private"
-    default_hashtags: str = "#MotherJones,#Investigative"
+    default_hashtags: str = "#MotherJones"
 
     class Config:
         env_file = ".env"

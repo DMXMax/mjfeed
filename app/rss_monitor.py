@@ -1,29 +1,46 @@
+import html
+import logging
+from datetime import datetime
+
 import feedparser
+import requests
+from bs4 import BeautifulSoup
 from sqlmodel import Session, select
+
 from app.storage import Article, engine
 from app.teaser import generate_teaser, generate_hashtags
-from datetime import datetime
-import requests
-import html
-from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 RSS_URL = "https://www.motherjones.com/feed/"
 
 def poll_feed():
-    print("Polling RSS feed using requests...")
+    logger.info("Polling RSS feed using requests", extra={"rss_url": RSS_URL})
     try:
-        response = requests.get(RSS_URL, headers={'User-Agent': 'Mozilla/5.0'})
-        print(f"HTTP Status Code: {response.status_code}")
+        response = requests.get(
+            RSS_URL,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        logger.info(
+            "RSS fetch completed",
+            extra={"status_code": response.status_code},
+        )
         if response.status_code == 200:
             feed = feedparser.parse(response.content)
         else:
-            print(f"Failed to fetch feed. Status code: {response.status_code}")
+            logger.warning(
+                "Failed to fetch RSS feed",
+                extra={"status_code": response.status_code},
+            )
             return
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred during the request: {e}")
+    except requests.exceptions.RequestException:
+        logger.exception("An error occurred during the RSS request")
         return
 
-    print(f"Found {len(feed.entries)} entries in the feed.")
+    logger.info(
+        "Parsed RSS feed entries",
+        extra={"entry_count": len(feed.entries)},
+    )
     
     with Session(engine) as session:
         # Get all guids from the feed
@@ -36,7 +53,10 @@ def poll_feed():
         guids_to_delete = db_guids - feed_guids
         
         if guids_to_delete:
-            print(f"Found {len(guids_to_delete)} articles to delete.")
+            logger.info(
+                "Found articles to delete",
+                extra={"delete_count": len(guids_to_delete)},
+            )
             statement = select(Article).where(Article.guid.in_(guids_to_delete))
             articles_to_delete = session.exec(statement).all()
             for article in articles_to_delete:
@@ -44,13 +64,19 @@ def poll_feed():
             session.commit()
 
         for entry in feed.entries:
-            print(f"Processing entry: {entry.title}")
+            logger.info(
+                "Processing feed entry",
+                extra={"title": entry.title, "guid": getattr(entry, "id", None)},
+            )
             # Check if article exists
             statement = select(Article).where(Article.guid == entry.id)
             existing_article = session.exec(statement).first()
 
             if not existing_article:
-                print(f"  -> New article. Adding to database.")
+                logger.info(
+                    "New article detected, adding to database",
+                    extra={"guid": entry.id},
+                )
                 clean_description = html.unescape(entry.summary)
                 clean_title = html.unescape(entry.title)
 
@@ -83,7 +109,10 @@ def poll_feed():
                 )
                 session.add(article)
             else:
-                print(f"  -> Article already exists. Skipping.")
-        print("Committing changes to the database.")
+                logger.info(
+                    "Article already exists, skipping",
+                    extra={"guid": entry.id},
+                )
+        logger.info("Committing RSS changes to the database")
         session.commit()
-    print("Finished polling feed.")
+    logger.info("Finished polling RSS feed")

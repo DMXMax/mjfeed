@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, Request, Depends, Form
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,6 +12,11 @@ from app.rss_monitor import poll_feed
 from app.mastodon_client import post_toot
 from app.teaser import generate_hashtags, generate_new_teaser, fetch_and_cache_trending_hashtags
 from app.config import settings
+from app.logging_config import configure_logging
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -64,7 +71,9 @@ def review_articles(request: Request, session: Session = Depends(get_session)):
         if article.suggested_hashtags:
             stored_hashtags = article.suggested_hashtags.split(',')
             # If only basic hashtags, regenerate with trending hashtags
-            if len(stored_hashtags) <= 2 and all(tag in ["#MotherJones", "#Investigative"] for tag in stored_hashtags):
+            if len(stored_hashtags) <= 2 and all(
+                tag in ["#MotherJones", "#Investigative"] for tag in stored_hashtags
+            ):
                 # Regenerate hashtags with trending ones
                 try:
                     suggested_hashtags = generate_hashtags(
@@ -76,8 +85,11 @@ def review_articles(request: Request, session: Session = Depends(get_session)):
                     article.suggested_hashtags = ','.join(suggested_hashtags)
                     session.add(article)
                     session.commit()
-                except Exception as e:
-                    print(f"Error regenerating hashtags for article {article.id}: {e}")
+                except Exception:
+                    logger.exception(
+                        "Error regenerating hashtags for article",
+                        extra={"article_id": article.id},
+                    )
                     suggested_hashtags = stored_hashtags
             else:
                 suggested_hashtags = stored_hashtags
@@ -93,8 +105,11 @@ def review_articles(request: Request, session: Session = Depends(get_session)):
                 article.suggested_hashtags = ','.join(suggested_hashtags)
                 session.add(article)
                 session.commit()
-            except Exception as e:
-                print(f"Error generating hashtags for article {article.id}: {e}")
+            except Exception:
+                logger.exception(
+                    "Error generating hashtags for article",
+                    extra={"article_id": article.id},
+                )
                 suggested_hashtags = ["#MotherJones", "#Investigative"]
         
         articles_with_hashtags.append({

@@ -1,5 +1,11 @@
+import logging
+
 from mastodon import Mastodon
+
 from app.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 def get_mastodon_client():
     """
@@ -15,11 +21,16 @@ def post_toot(content: str, visibility: str = "public") -> bool:
     mastodon = get_mastodon_client()
     try:
         status_object = mastodon.status_post(content, visibility=visibility)
-        print(f"Toot posted successfully with visibility: {visibility}!")
-        print(f"Mastodon Status Object: {status_object}")
+        logger.info(
+            "Toot posted successfully",
+            extra={
+                "visibility": visibility,
+                "status_id": getattr(status_object, "id", None),
+            },
+        )
         return True
-    except Exception as e:
-        print(f"Error posting toot: {e}")
+    except Exception:
+        logger.exception("Error posting toot")
         return False
 
 def get_trending_hashtags(limit: int = 20) -> list[dict]:
@@ -31,6 +42,6 @@ def get_trending_hashtags(limit: int = 20) -> list[dict]:
     try:
         trends = mastodon.trending_tags(limit=limit)
         return trends
-    except Exception as e:
-        print(f"Error fetching trending hashtags: {e}")
+    except Exception:
+        logger.exception("Error fetching trending hashtags")
         return []

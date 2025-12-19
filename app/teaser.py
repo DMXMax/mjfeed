@@ -1,9 +1,15 @@
 from datetime import datetime, timedelta
+import logging
+
 import google.generativeai as genai
 from sqlmodel import Session, select
+
 from app.config import settings
 from app.storage import ApprovedTeaserExample
 from app.mastodon_client import get_trending_hashtags
+
+logger = logging.getLogger(__name__)
+
 
 # Use a cheaper / faster default model, overridable via environment variable
 DEFAULT_GOOGLE_MODEL = "models/gemini-2.5-flash-lite"
@@ -25,14 +31,17 @@ def fetch_and_cache_trending_hashtags() -> list[dict]:
     """
     global _trending_hashtags_cache, _trending_hashtags_cache_time
     try:
-        print("Fetching trending hashtags from Mastodon...")
+        logger.info("Fetching trending hashtags from Mastodon")
         trending = get_trending_hashtags(limit=20)
         _trending_hashtags_cache = trending
         _trending_hashtags_cache_time = datetime.utcnow()
-        print(f"Successfully cached {len(trending)} trending hashtags")
+        logger.info(
+            "Successfully cached trending hashtags",
+            extra={"count": len(trending)},
+        )
         return trending
-    except Exception as e:
-        print(f"Error fetching trending hashtags: {e}")
+    except Exception:
+        logger.exception("Error fetching trending hashtags")
         return []
 
 def get_cached_trending_hashtags() -> list[dict]:
@@ -58,7 +67,9 @@ def generate_teaser(description: str, max_length: int = 200) -> str:
     Generates a teaser from the article description using a generative AI model.
     """
     if not settings.google_api_key:
-        print("Warning: GOOGLE_API_KEY is not set. Falling back to simple truncation.")
+        logger.warning(
+            "GOOGLE_API_KEY is not set. Falling back to simple truncation for teaser generation"
+        )
         if len(description) <= max_length:
             return description
         return description[:max_length] + "..."
@@ -67,8 +78,8 @@ def generate_teaser(description: str, max_length: int = 200) -> str:
         prompt = f"Generate a super engaging, concise, and personal social media teaser for the following article. The teaser should be ready to use, without any introductory phrases or options, and less than {max_length} characters.\n\n{description}"
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e:
-        print(f"Error generating teaser with AI: {e}")
+    except Exception:
+        logger.exception("Error generating teaser with AI")
         # Fallback to simple truncation
         if len(description) <= max_length:
             return description
@@ -126,8 +137,8 @@ Identify which trending hashtags are relevant to this article. Only select hasht
                     break
         
         return relevant_tags[:max_results]
-    except Exception as e:
-        print(f"Error determining relevant hashtags: {e}")
+    except Exception:
+        logger.exception("Error determining relevant hashtags")
         return []
 
 def generate_hashtags_with_trending(
@@ -161,8 +172,8 @@ def generate_hashtags_with_trending(
                 max_results=2  # Limit to avoid hashtag spam
             )
             hashtags.extend([f"#{tag}" for tag in relevant_trending])
-        except Exception as e:
-            print(f"Error processing trending hashtags: {e}")
+        except Exception:
+            logger.exception("Error processing trending hashtags")
             # Continue without trending hashtags if there's an error
     
     return hashtags
@@ -190,7 +201,9 @@ def generate_new_teaser(original_description: str, feedback_teaser: str, session
     incorporating examples of previously approved teasers.
     """
     if not settings.google_api_key:
-        print("Warning: GOOGLE_API_KEY is not set. Falling back to simple concatenation.")
+        logger.warning(
+            "GOOGLE_API_KEY is not set. Falling back to simple concatenation for new teaser"
+        )
         return f"New summary based on feedback: {feedback_teaser} (Fallback - {datetime.now().strftime('%H:%M:%S')})"
 
     try:
@@ -207,6 +220,6 @@ def generate_new_teaser(original_description: str, feedback_teaser: str, session
         prompt = f"Given the original article content: \n\n{original_description}\n\nAnd the previous summary (feedback): \n\n{feedback_teaser}\n\n{prompt_examples}Generate a new, improved, concise, and engaging social media teaser. The new teaser should be ready to use, without any introductory phrases or options, and less than 200 characters."
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e:
-        print(f"Error generating new teaser with AI: {e}")
+    except Exception:
+        logger.exception("Error generating new teaser with AI")
         return f"New summary based on feedback: {feedback_teaser} (Error - {datetime.now().strftime('%H:%M:%S')})"
