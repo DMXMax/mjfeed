@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import FastAPI, Request, Depends, Form
 from fastapi.responses import HTMLResponse, FileResponse
@@ -27,6 +28,27 @@ scheduler = BackgroundScheduler()
 def get_session():
     with Session(engine) as session:
         yield session
+
+HASHTAG_SPLIT_RE = re.compile(r"[,\s]+")
+
+def normalize_hashtags(raw: str | None) -> list[str]:
+    """
+    Parses user input from the review UI into de-duplicated hashtags.
+    """
+    if not raw:
+        return []
+    normalized: list[str] = []
+    for token in HASHTAG_SPLIT_RE.split(raw.strip()):
+        token = token.strip()
+        if not token:
+            continue
+        token = token.lstrip("#")
+        if not token:
+            continue
+        formatted = f"#{token}"
+        if formatted not in normalized:
+            normalized.append(formatted)
+    return normalized
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
@@ -126,6 +148,7 @@ def process_article(
     action: str = Form(...),
     edited_teaser: str = Form(...),
     visibility: str = Form(...),
+    hashtags: str = Form(""),
     session: Session = Depends(get_session)
 ):
     article = session.get(Article, article_id)
@@ -141,6 +164,8 @@ def process_article(
         article.ai_teaser = edited_teaser
         article.status = "approved"
         article.visibility = visibility
+        normalized_hashtags = normalize_hashtags(hashtags)
+        article.suggested_hashtags = ','.join(normalized_hashtags) if normalized_hashtags else None
         session.add(article)
 
         approved_example = ApprovedTeaserExample(
@@ -160,6 +185,8 @@ def process_article(
         return {"message": "Article discarded"}
     elif action == "re_summarize":
         # Assuming article.description holds the original article content
+        normalized_hashtags = normalize_hashtags(hashtags)
+        article.suggested_hashtags = ','.join(normalized_hashtags) if normalized_hashtags else None
         new_teaser = generate_new_teaser(article.description, edited_teaser, session)
         article.ai_teaser = new_teaser
         session.add(article)

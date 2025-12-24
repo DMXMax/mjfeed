@@ -1,5 +1,6 @@
 import html
 import logging
+import re
 from datetime import datetime
 
 import feedparser
@@ -13,6 +14,54 @@ from app.teaser import generate_teaser, generate_hashtags
 logger = logging.getLogger(__name__)
 
 RSS_URL = "https://www.motherjones.com/feed/"
+
+
+def _clean_text(raw_html: str | None) -> str:
+    """
+    Normalize RSS snippets by stripping tags, decoding entities, and collapsing spaces.
+    """
+    if not raw_html:
+        return ""
+    text = BeautifulSoup(raw_html, "html.parser").get_text(separator=" ", strip=True)
+    text = html.unescape(text)
+    # Collapse repeated whitespace/newlines to single spaces
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _extract_full_text(entry) -> str:
+    """
+    Extracts combined cleaned content blocks from feed entry.
+    Prefer <content:encoded> if present; fall back to feedparser's content array.
+    """
+    raw_blocks: list[str] = []
+
+    # Feedparser exposes <content:encoded> via entry.content (list of dicts)
+    if hasattr(entry, "content") and entry.content:
+        for part in entry.content:
+            value = getattr(part, "value", None)
+            if value is None and isinstance(part, dict):
+                value = part.get("value")
+            if value:
+                raw_blocks.append(value)
+
+    # Some feeds expose raw strings via entry["content:encoded"] or entry.content_encoded
+    encoded_raw = getattr(entry, "content_encoded", None)
+    if encoded_raw is None:
+        try:
+            encoded_raw = entry.get("content:encoded")
+        except AttributeError:
+            encoded_raw = None
+    if encoded_raw:
+        if isinstance(encoded_raw, list):
+            raw_blocks.extend([block for block in encoded_raw if isinstance(block, str) and block])
+        elif isinstance(encoded_raw, str):
+            raw_blocks.append(encoded_raw)
+
+    if not raw_blocks:
+        return ""
+    combined = " ".join(raw_blocks)
+    return _clean_text(combined)
 
 def poll_feed():
     logger.info("Polling RSS feed using requests", extra={"rss_url": RSS_URL})
@@ -77,14 +126,10 @@ def poll_feed():
                     "New article detected, adding to database",
                     extra={"guid": entry.id},
                 )
-                clean_description = html.unescape(entry.summary)
-                clean_title = html.unescape(entry.title)
+                clean_description = _clean_text(getattr(entry, "summary", ""))
+                clean_title = _clean_text(entry.title)
 
-                full_text = ""
-                if hasattr(entry, 'content') and entry.content:
-                    soup = BeautifulSoup(entry.content[0].value, 'html.parser')
-                    full_text = soup.get_text(separator=' ', strip=True)
-                
+                full_text = _extract_full_text(entry)
                 article_len = len(full_text) if full_text else 0
 
                 teaser = generate_teaser(full_text if full_text else clean_description)

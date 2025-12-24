@@ -13,11 +13,41 @@ logger = logging.getLogger(__name__)
 
 # Use a cheaper / faster default model, overridable via environment variable
 DEFAULT_GOOGLE_MODEL = "models/gemini-2.5-flash-lite"
+DEFAULT_GOOGLE_SUMMARY_MODEL = "models/gemini-2.0-flash-lite"
 MODEL_NAME = getattr(settings, "google_model_name", DEFAULT_GOOGLE_MODEL)
+SUMMARY_MODEL_NAME = getattr(
+    settings,
+    "google_summary_model_name",
+    DEFAULT_GOOGLE_SUMMARY_MODEL,
+)
 
+# Tunable guards for long-form articles
+LONG_ARTICLE_CHAR_THRESHOLD = getattr(
+    settings,
+    "teaser_summary_threshold_chars",
+    4000,
+)
+SUMMARY_TARGET_LENGTH = getattr(
+    settings,
+    "teaser_summary_target_chars",
+    1200,
+)
+SUMMARY_PROMPT_MAX_CHARS = getattr(
+    settings,
+    "teaser_summary_prompt_limit",
+    6000,
+)
+
+model = None
+summary_model = None
 if settings.google_api_key:
     genai.configure(api_key=settings.google_api_key)
     model = genai.GenerativeModel(MODEL_NAME)
+    # Avoid instantiating the same model twice
+    if SUMMARY_MODEL_NAME == MODEL_NAME:
+        summary_model = model
+    else:
+        summary_model = genai.GenerativeModel(SUMMARY_MODEL_NAME)
 
 # Cache for trending hashtags (fetched once per day)
 _trending_hashtags_cache: list[dict] = []
@@ -62,28 +92,83 @@ def get_cached_trending_hashtags() -> list[dict]:
         # Cache expired, return empty (will be refreshed by scheduler)
         return []
 
+def _truncate_text(text: str, limit: int, add_ellipsis: bool = True) -> str:
+    if len(text) <= limit:
+        return text
+    clipped = text[:limit].rstrip()
+    return f"{clipped}..." if add_ellipsis else clipped
+
+
+def _prepare_teaser_source(description: str) -> str:
+    """
+    If the article is especially long, summarize it with a cheaper model so the
+    final teaser prompt stays focused.
+    """
+    if len(description) <= LONG_ARTICLE_CHAR_THRESHOLD:
+        return description
+    logger.info(
+        "Article exceeds teaser threshold, summarizing before teaser generation",
+        extra={"length": len(description)},
+    )
+    return _summarize_long_article(description)
+
+
+def _summarize_long_article(description: str) -> str:
+    """
+    Summarizes the article with Gemini 2.0 flash lite (cheaper, handles longer
+    inputs). Falls back to local truncation when the model isn't available.
+    """
+    clipped_description = _truncate_text(
+        description,
+        SUMMARY_PROMPT_MAX_CHARS,
+        add_ellipsis=False,
+    )
+
+    if not summary_model:
+        return _truncate_text(clipped_description, SUMMARY_TARGET_LENGTH)
+
+    prompt = (
+        "Summarize the following article into a concise, neutral overview that "
+        f"preserves the key hook, names, and numbers. Keep it under "
+        f"{SUMMARY_TARGET_LENGTH} characters. Return plan text only. No emojis.\n\n"
+        f"{clipped_description}"
+    )
+
+    try:
+        response = summary_model.generate_content(prompt)
+        summarized = (response.text or "").strip()
+        if summarized:
+            return summarized
+    except Exception:
+        logger.exception("Error summarizing long article for teaser prep")
+    return _truncate_text(clipped_description, SUMMARY_TARGET_LENGTH)
+
+
 def generate_teaser(description: str, max_length: int = 200) -> str:
     """
     Generates a teaser from the article description using a generative AI model.
+    Long inputs are summarized first with a cheaper model to keep prompts short.
     """
-    if not settings.google_api_key:
+    prepared_description = _prepare_teaser_source(description)
+
+    if not model:
         logger.warning(
             "GOOGLE_API_KEY is not set. Falling back to simple truncation for teaser generation"
         )
-        if len(description) <= max_length:
-            return description
-        return description[:max_length] + "..."
+        return _truncate_text(prepared_description, max_length)
 
     try:
-        prompt = f"Generate a super engaging, concise, and personal social media teaser for the following article. The teaser should be ready to use, without any introductory phrases or options, and less than {max_length} characters.\n\n{description}"
+        prompt = (
+            "Generate a super engaging, concise, and personal social media "
+            "teaser for the following article. The teaser should be ready to "
+            f"use, without any introductory phrases or options, and less than "
+            f"{max_length} characters.\n\n{prepared_description}"
+        )
         response = model.generate_content(prompt)
         return response.text
     except Exception:
         logger.exception("Error generating teaser with AI")
-        # Fallback to simple truncation
-        if len(description) <= max_length:
-            return description
-        return description[:max_length] + "..."
+        return _truncate_text(prepared_description, max_length)
 
 def find_relevant_trending_hashtags(
     article_title: str, 

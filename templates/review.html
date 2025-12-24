@@ -268,6 +268,35 @@
             margin-right: 4px;
         }
 
+        .hashtags-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .hashtags-hint {
+            font-size: 11px;
+            color: var(--text-softer);
+        }
+
+        .hashtags-input {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(0, 0, 0, 0.15);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 13px;
+            resize: vertical;
+            min-height: 54px;
+        }
+
+        .hashtags-input:focus {
+            outline: 2px solid rgba(103, 155, 255, 0.35);
+        }
+
         .hashtag-pill {
             padding: 3px 9px;
             border-radius: var(--radius-pill);
@@ -427,9 +456,13 @@
 
                         <textarea name="edited_teaser" rows="5" cols="80">{{ article.ai_teaser }}</textarea>
 
-                        <div>
+                        <div class="hashtags-editor">
+                            <div>
+                                <span class="hashtags-label">Hashtags (editable)</span>
+                                <span class="hashtags-hint">Separate with commas or spaces</span>
+                            </div>
+                            <textarea name="hashtags" class="hashtags-input" rows="2" aria-label="Edit hashtags for {{ article.title }}">{{ ' '.join(suggested_hashtags) }}</textarea>
                             <div class="hashtags-row">
-                                <span class="hashtags-label">Suggested hashtags</span>
                                 {% for tag in suggested_hashtags %}
                                 <span class="hashtag-pill">{{ tag }}</span>
                                 {% endfor %}
