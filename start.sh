@@ -1,1 +1,1 @@
-uvicorn app.main:app
+uv run uvicorn app.main:app
