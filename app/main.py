@@ -2,7 +2,7 @@ import logging
 import re
 
 from fastapi import FastAPI, Request, Depends, Form
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
@@ -67,6 +67,20 @@ def on_startup():
 @app.on_event("shutdown")
 def on_shutdown():
     scheduler.shutdown()
+
+@app.post("/refresh-feed")
+def refresh_feed():
+    """Manually trigger an RSS feed poll. Returns after the poll completes."""
+    try:
+        poll_feed()
+        return {"message": "Feed refreshed"}
+    except Exception:
+        logger.exception("Error during manual feed refresh")
+        return JSONResponse(
+            status_code=500,
+            content={"message": "Feed refresh failed"},
+        )
+
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
