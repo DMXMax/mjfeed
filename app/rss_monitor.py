@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from sqlmodel import Session, select
 
 from app.storage import Article, engine
-from app.teaser import generate_teaser, generate_hashtags
+from app.teaser import generate_hashtags
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,6 @@ def poll_feed():
                 full_text = _extract_full_text(entry)
                 article_len = len(full_text) if full_text else 0
 
-                teaser = generate_teaser(full_text if full_text else clean_description)
                 # Generate suggested hashtags and store them
                 hashtags = generate_hashtags(
                     section=None,
@@ -148,7 +147,7 @@ def poll_feed():
                     pub_date=datetime(*entry.published_parsed[:6]),
                     description=clean_description,
                     author=entry.author if 'author' in entry else None,
-                    ai_teaser=teaser,
+                    ai_teaser=None,  # Summary will be generated on-demand
                     article_length=article_len,
                     suggested_hashtags=hashtags_str,
                 )

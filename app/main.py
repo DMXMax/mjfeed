@@ -11,7 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.storage import Article, ApprovedTeaserExample, create_db_and_tables, engine
 from app.rss_monitor import poll_feed
 from app.mastodon_client import post_toot
-from app.teaser import generate_hashtags, generate_new_teaser, fetch_and_cache_trending_hashtags
+from app.teaser import generate_hashtags, generate_new_teaser, generate_teaser, fetch_and_cache_trending_hashtags
 from app.config import settings
 from app.logging_config import configure_logging
 
@@ -160,8 +160,8 @@ def review_articles(request: Request, session: Session = Depends(get_session)):
 def process_article(
     article_id: int,
     action: str = Form(...),
-    edited_teaser: str = Form(...),
-    visibility: str = Form(...),
+    edited_teaser: str = Form(""),
+    visibility: str = Form("private"),
     hashtags: str = Form(""),
     session: Session = Depends(get_session)
 ):
@@ -206,6 +206,15 @@ def process_article(
         session.add(article)
         session.commit()
         return {"message": "Article re-summarized", "new_teaser": new_teaser}
+    elif action == "generate_summary":
+        # Generate initial summary for an article that doesn't have one yet
+        normalized_hashtags = normalize_hashtags(hashtags)
+        article.suggested_hashtags = ','.join(normalized_hashtags) if normalized_hashtags else None
+        new_teaser = generate_teaser(article.description)
+        article.ai_teaser = new_teaser
+        session.add(article)
+        session.commit()
+        return {"message": "Summary generated", "new_teaser": new_teaser}
     return {"message": "Invalid action"}
 
 def post_approved_articles():
@@ -213,26 +222,34 @@ def post_approved_articles():
         statement = select(Article).where(Article.status == "approved")
         articles_to_post = session.exec(statement).all()
         for article in articles_to_post:
-                        teaser = article.ai_teaser
-                        # Use stored hashtags, or generate if not stored (for older articles)
-                        if article.suggested_hashtags:
-                            hashtags = article.suggested_hashtags.split(',')
-                        else:
-                            hashtags = generate_hashtags(
-                                section=None,
-                                article_title=article.title,
-                                article_description=article.description
-                            )
-                        # Construct the content for the Mastodon toot
-                        content = f"{teaser}\n\nRead more → {article.link}\n\n{' '.join(hashtags)}"
-                        
-                        mastodon_visibility = article.visibility
-                        if mastodon_visibility == "direct":
-                            content += " @bullfinch"
-                            mastodon_visibility = "direct"
+            # Skip articles without summaries
+            if not article.ai_teaser or not article.ai_teaser.strip():
+                logger.warning(
+                    "Skipping article without summary",
+                    extra={"article_id": article.id, "title": article.title},
+                )
+                continue
             
-                        status = post_toot(content, visibility=mastodon_visibility)
-                        if status:
-                            article.status = "posted"
-                            session.add(article)
-                            session.commit()
+            teaser = article.ai_teaser
+            # Use stored hashtags, or generate if not stored (for older articles)
+            if article.suggested_hashtags:
+                hashtags = article.suggested_hashtags.split(',')
+            else:
+                hashtags = generate_hashtags(
+                    section=None,
+                    article_title=article.title,
+                    article_description=article.description
+                )
+            # Construct the content for the Mastodon toot
+            content = f"{teaser}\n\nRead more → {article.link}\n\n{' '.join(hashtags)}"
+            
+            mastodon_visibility = article.visibility
+            if mastodon_visibility == "direct":
+                content += " @bullfinch"
+                mastodon_visibility = "direct"
+        
+            status = post_toot(content, visibility=mastodon_visibility)
+            if status:
+                article.status = "posted"
+                session.add(article)
+                session.commit()

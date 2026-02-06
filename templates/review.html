@@ -392,6 +392,25 @@
             box-shadow: 0 12px 26px rgba(255, 200, 87, 0.45);
         }
 
+        button[value="generate_summary"] {
+            background: linear-gradient(135deg, #679bff 0, #4a7fff 100%);
+            color: #f5f6fa;
+            box-shadow: 0 10px 22px rgba(103, 155, 255, 0.35);
+        }
+
+        button[value="generate_summary"]:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 26px rgba(103, 155, 255, 0.45);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+
         .empty-state {
             margin-top: 40px;
             padding: 18px 18px 16px;
@@ -475,7 +494,7 @@
                 </section>
 
                 <section>
-                    <form action="/process_article/{{ article.id }}" method="post">
+                    <form action="/process_article/{{ article.id }}" method="post" id="form-{{ article.id }}">
                         <div class="teaser-label-row">
                             <div class="teaser-label">AI teaser (editable)</div>
                             <div class="visibility-inline">
@@ -490,7 +509,7 @@
                             </div>
                         </div>
 
-                        <textarea name="edited_teaser" rows="5" cols="80">{{ article.ai_teaser }}</textarea>
+                        <textarea name="edited_teaser" rows="5" cols="80" placeholder="Type your own summary or click 'Generate Summary' for an AI teaser.">{{ article.ai_teaser or '' }}</textarea>
 
                         <div class="hashtags-editor">
                             <div>
@@ -512,9 +531,15 @@
                             <button type="submit" name="action" value="discard">
                                 Discard
                             </button>
+                            {% if article.ai_teaser %}
                             <button type="submit" name="action" value="re_summarize">
                                 Re-summarize
                             </button>
+                            {% else %}
+                            <button type="submit" name="action" value="generate_summary" id="generate-summary-{{ article.id }}">
+                                Generate Summary
+                            </button>
+                            {% endif %}
                         </div>
                     </form>
                 </section>
