@@ -1,0 +1,30 @@
+# Deny everything by default
+*
+
+# Allow directories we need (must come before file patterns)
+!app/
+!templates/
+!static/
+
+# Allow Python source files
+!*.py
+!app/**/*.py
+
+# Allow HTML templates
+!*.html
+!templates/**/*.html
+
+# Allow static assets
+!*.svg
+!static/**/*.svg
+
+# Allow configuration and documentation files
+!.env.example
+!.gitignore
+!README.md
+!requirements.txt
+!docker-compose.yml
+!start.sh
+
+# Allow empty __init__.py files (they're still .py files, but being explicit)
+!**/__init__.py
